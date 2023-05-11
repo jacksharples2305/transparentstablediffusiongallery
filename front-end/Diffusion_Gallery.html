@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+	<title>Diffusion Gallery</title>
+	<link href="favicon.ico" type="image/x-icon" rel="shortcut icon">
+	<meta name="description" content="This page displays 2D images created by stable diffusion using prompts written by humans. These 2D pictures can then be turned into 3D models.">
+	<link href="dg_css.css" rel="stylesheet" type="text/css">
+</head>
+
+<body onload="prompt_update()">
+<h1>Diffusion Gallery</h1>
+<hr>
+<p> Stable diffusion gallery with a pipeline to 3D printing.</p>
+<p> Please choose options from the dropdown menu to start generating image grids.</p>
+<p> Each column is generated using a different random number seed.</p>
+
+<strong><label for="prompt-forms">Prompts:</label><br></strong>
+<select id="prompt-forms" onchange="prompt_update()">
+<option value="enamel">[color] enamel [accessory]</option>
+<option value="wire">[accessory] made from thick [metal] wire in [style] style</option>
+<option value="wedding">[colour] enamel wedding band</option>
+<option value="ring">minimalist [metal] ring with an image of a [animal]</option>
+</select>
+
+<br>
+<div>
+<span id="var">
+	<!-- A span for variable forms. HTML will be injected by a Java script below. -->
+</span>
+
+<span id="const">
+	<!-- A span for constant forms. HTML will be injected by a Java script below. -->
+</span>	
+</div>
+
+<div id="gallery">
+	<!-- A div for image grids. HTML will be injected by a Java script below. -->
+</div>
+
+<p><br>
+</p>
+
+<!-- <p id="demo">Print here (:^>) !</p> -->
+
+
+<script>
+
+// Relative path to 'jewelry' folder - change as needed
+var root = "/home/karolis/k/stable-diffusion/stable-diffusion/outputs/txt2img-jewelry";
+<!--var root = "../../../OneDrive/stable-diffusion/jewelry";-->
+
+var prompt = "prompt";
+var row_var = "";
+var folder = "";
+var path = "";
+var file = "";
+var seeds = [27,28,29,30,31];
+var seed = "";
+var desc = "";
+
+var colour = "";
+var accessory = "";
+var metal = "";
+var style = "";
+var animal = "";
+
+var dict = "";
+
+const enamel_dict = {
+	prompt: "[color]%20enamel%20[accessory]",
+	colour: ["blue","green","red"],
+	accessory: ["amulet","earrings","necklace","ring"],
+};
+
+const wire_dict = {
+	prompt: "[accessory]%20made%20from%20thick%20[metal]%20wire%20in%20[style]%20style",
+	accessory: ["amulet","brooch","hair_pin","necklace","ring"],
+	metal: ["bronze","brass","aluminium","copper","silver","gold","platinum","titanium"],
+	style: ["ancient_Baltic","archaic_Lithuanian","British_royal","Celtic","modern","native_American","old_school","Tribal","vintage"],
+};
+
+const wedding_dict = {
+	prompt: "[colour]%20enamel%20wedding%20band",
+	colour: ["blue","black","brown","green","cyan","orange","red","yellow","white"],
+};
+
+const ring_dict = {
+	prompt: "minimalist%20[metal]%20ring%20with%20an%20image%20of%20a%20[animal]",
+	metal: ["bronze","brass","aluminium","copper","silver","gold","platinum","titanium"],
+	animal: ["cat","dog","dolphin","kangaroo","spider"],
+};
+
+var row_var = "";
+var var_forms = "";
+var const_forms = "";
+var gallery = "";
+
+
+function prompt_update() {
+	prompt = document.querySelector('#prompt-forms').value;
+	if (prompt == "enamel") {
+		dict = enamel_dict;
+	} else if (prompt == "wire") {
+		dict = wire_dict;
+	} else if (prompt == "wedding") {
+		dict = wedding_dict;
+	} else if (prompt == "ring") {
+		dict = ring_dict;
+	}
+	row_var = Object.keys(dict)[1];
+	var_form = make_var_form(dict);
+	document.getElementById("var").innerHTML = var_form;
+	const_forms = make_const_forms(dict);
+	document.getElementById("const").innerHTML = const_forms;
+	gallery = make_gallery();
+	document.getElementById("gallery").innerHTML = gallery;
+};
+
+function make_var_form(dict) {
+	html = '';
+	html += '<strong><label for="var-form">Row variable:</label><br></strong>';
+	html += '<select id="var-form" onchange="var_update(dict)">';
+	for (const key of Object.keys(dict)) {
+		if (key != "prompt") {
+			html += '<option value="'+key+'">'+key+'</option>';
+		};
+	};
+	html += '</select>';
+	return html;
+};
+
+function var_update(dict) {
+	row_var = document.querySelector('#var-form').value;
+	const_forms = make_const_forms(dict);
+	document.getElementById("const").innerHTML = const_forms;
+	const_update()
+};
+
+function make_const_forms(dict) {
+	row_var = document.querySelector('#var-form').value;
+	html = '';
+	n = 0;
+	for (const key of Object.keys(dict)) {
+		if (key != "prompt" && key != row_var) {
+			n++;
+			html += '<span>';
+			html += '<strong><label for="const-form-'+n+'">'+key+':</label><br></strong>';
+			html += '<select id="const-form-'+n+'" onchange="const_update(dict)">';
+			for (const val of dict[key]) {
+				html += '<option value="'+val+'">'+val+'</option>';
+			};
+		};
+		html += '</select>';
+		html += '</span>';
+		html += '&nbsp;';
+	};
+	return html;
+};
+
+function const_update() {
+	gallery = make_gallery();
+	document.getElementById("gallery").innerHTML = gallery;
+};
+
+function make_gallery() {
+	html = '';
+	dict = '';
+	prompt = document.querySelector('#prompt-forms').value;
+	if (prompt == "enamel") {
+		dict = enamel_dict;
+		html = enamel_gallery(dict);
+	} else if (prompt == "wire") {
+		dict = wire_dict;
+		html = wire_gallery(dict);
+	} else if (prompt == "wedding") {
+		dict = wedding_dict;
+		html = wedding_gallery(dict);
+	} else if (prompt == "ring") {
+		dict = ring_dict;
+		html = ring_gallery(dict);
+	}
+	return html;
+};
+
+function iterate_seeds(html) {
+	for (let i = 0; i < 5; i++) {
+		seed = seeds[i].toString()
+		file = "seed_"+seed+"_0000"+i.toString()+".png";
+		path = root+"/"+folder+"/"+subfolder+"/"+file;
+		desc = subfolder+"_seed_"+seed;
+		html += '<div class="column"><figure>';
+		html += '<img src='+path+' alt='+desc+' title='+desc+' ';
+		html += 'height="128" width="128"></figure></div>';
+	}
+	return html;
+}
+
+function label_seeds(html) {
+	html += '<div class="row"><figcaption></figcaption>';
+	html += '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+	for (let i = 0; i < 5; i++) {
+		seed = seeds[i].toString();
+		html += '<div class="column"><figcaption>';
+		html += 'seed_'+seed;
+		html += '</figcaption></div>';
+	}
+	html += '</div>';
+	return html;
+}
+
+function enamel_gallery(dict) {
+	html = '';
+	folder = dict["prompt"];
+	row_var = document.querySelector('#var-form').value;
+	if (row_var == 'colour') {
+		accessory = document.querySelector('#const-form-1').value;
+		for (const val of dict[row_var]) {
+			colour = val;
+			html += '<div class="row">';
+			html += '<figcaption><br><br><br>'+colour+'</figcaption>';
+			subfolder = colour+"_enamel_"+accessory;
+			html = iterate_seeds(html);	
+			html += '</div>'
+		}
+	} else if (row_var == 'accessory') {
+		colour = document.querySelector('#const-form-1').value;
+		for (const val of dict[row_var]) {
+			accessory = val;
+			html += '<div class="row">';
+			html += '<figcaption><br><br><br>'+accessory+'</figcaption>';
+			subfolder = colour+"_enamel_"+accessory;
+			html = iterate_seeds(html);
+			html += '</div>'	
+		}
+	}
+	html = label_seeds(html);
+	return html;
+};
+
+function wire_gallery(dict) {
+	html = '';
+	folder = dict["prompt"];
+	row_var = document.querySelector('#var-form').value;
+	if (row_var == 'accessory') {
+		metal = document.querySelector('#const-form-1').value;
+		style = document.querySelector('#const-form-2').value;
+		for (const val of dict[row_var]) {
+			accessory = val;
+			html += '<div class="row">';
+			html += '<figcaption><br><br><br>'+accessory+'</figcaption>';
+			subfolder = accessory+'_made_from_thick_'+metal+'_wire_in_'+style+'_style'
+			html = iterate_seeds(html);	
+			html += '</div>'
+		}
+	} else if (row_var == 'metal') {
+		accessory = document.querySelector('#const-form-1').value;
+		style = document.querySelector('#const-form-2').value;
+		for (const val of dict[row_var]) {
+			metal = val;
+			html += '<div class="row">';
+			html += '<figcaption><br><br><br>'+metal+'</figcaption>';
+			subfolder = accessory+'_made_from_thick_'+metal+'_wire_in_'+style+'_style'
+			html = iterate_seeds(html);	
+			html += '</div>'	
+		}
+	} else if (row_var == 'style') {
+		accessory = document.querySelector('#const-form-1').value;
+		metal = document.querySelector('#const-form-2').value;
+		for (const val of dict[row_var]) {
+			style = val;
+			html += '<div class="row">';
+			html += '<figcaption><br><br><br>'+style+'</figcaption>';
+			subfolder = accessory+'_made_from_thick_'+metal+'_wire_in_'+style+'_style'
+			html = iterate_seeds(html);	
+			html += '</div>'	
+		}
+	}
+	html = label_seeds(html);
+	return html;
+};
+
+function wedding_gallery(dict) {
+	html = '';
+	folder = dict["prompt"];
+	row_var = document.querySelector('#var-form').value;
+	if (row_var == 'colour') {
+		for (const val of dict[row_var]) {
+			colour = val;
+			html += '<div class="row">';
+			html += '<figcaption><br><br><br>'+colour+'</figcaption>';
+			subfolder = colour+"_enamel_wedding_band";
+			html = iterate_seeds(html);	
+			html += '</div>'
+		}
+	}
+	html = label_seeds(html);
+	return html;
+};
+
+function ring_gallery(dict) {
+	html = '';
+	folder = dict["prompt"];
+	row_var = document.querySelector('#var-form').value;
+	if (row_var == 'metal') {
+		animal = document.querySelector('#const-form-1').value;
+		for (const val of dict[row_var]) {
+			metal = val;
+			html += '<div class="row">';
+			html += '<figcaption><br><br><br>'+metal+'</figcaption>';
+			subfolder = "minimalist_"+metal+"_ring_with_an_image_of_a_"+animal;
+			html = iterate_seeds(html);	
+			html += '</div>'
+		}
+	} else if (row_var == 'animal') {
+		metal = document.querySelector('#const-form-1').value;
+		for (const val of dict[row_var]) {
+			animal = val;
+			html += '<div class="row">';
+			html += '<figcaption><br><br><br>'+animal+'</figcaption>';
+			subfolder = "minimalist_"+metal+"_ring_with_an_image_of_a_"+animal;
+			html = iterate_seeds(html);
+			html += '</div>'	
+		}
+	}
+	html = label_seeds(html);
+	return html;
+};
+
+
+</script>
+
+</body>
+
+</html>
